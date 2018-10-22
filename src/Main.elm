@@ -1,9 +1,5 @@
 port module Main exposing (main)
 
-{-
-   Rotating triangle, that is a "hello world" of the WebGL
--}
-
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
 import Html exposing (Html)
@@ -14,22 +10,60 @@ import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL exposing (Mesh, Shader)
 
 
-port updateVRCanvas : (( Float, Float ) -> msg) -> Sub msg
+port enterVR : () -> Cmd msg
+
+
+port newVRData : (VRData -> msg) -> Sub msg
+
+
+type alias M4Record =
+    { m11 : Float
+    , m21 : Float
+    , m31 : Float
+    , m41 : Float
+    , m12 : Float
+    , m22 : Float
+    , m32 : Float
+    , m42 : Float
+    , m13 : Float
+    , m23 : Float
+    , m33 : Float
+    , m43 : Float
+    , m14 : Float
+    , m24 : Float
+    , m34 : Float
+    , m44 : Float
+    }
+
+
+type alias VRData =
+    { leftProjectionMatrix : M4Record
+    , leftViewMatrix : M4Record
+    , rightProjectionMatrix : M4Record
+    , rightViewMatrix : M4Record
+    }
 
 
 type alias Model =
-    { time : Float, width : Int, height : Int }
+    { time : Float
+    , width : Int
+    , height : Int
+    , initialised : Bool
+    , leftProjection : Mat4
+    , leftView : Mat4
+    }
 
 
 type Msg
     = CanvasUpdate ( Float, Float )
+    | NewVRData VRData
     | AnimationDelta Float
 
 
 main : Program Value Model Msg
 main =
     Browser.element
-        { init = \_ -> ( Model 0 400 400, Cmd.none )
+        { init = \_ -> ( Model 4500 400 400 False Mat4.identity Mat4.identity, Cmd.none )
         , view = view
         , subscriptions = subscriptions
         , update = update
@@ -40,29 +74,57 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         AnimationDelta f ->
-            ( { model | time = model.time + f }, Cmd.none )
+            if model.initialised then
+                ( model, Cmd.none )
+
+            else
+                ( { model | initialised = True }, enterVR () )
 
         CanvasUpdate ( width, height ) ->
             ( { model | width = floor width, height = floor height }, Cmd.none )
 
+        NewVRData data ->
+            ( { model
+                | leftProjection = Mat4.fromRecord data.leftProjectionMatrix
+                , leftView = Mat4.fromRecord data.leftViewMatrix
+              }
+            , Cmd.none
+            )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch [ onAnimationFrameDelta AnimationDelta, updateVRCanvas CanvasUpdate ]
+    Sub.batch
+        [ if model.initialised then
+            Sub.none
+
+          else
+            onAnimationFrameDelta AnimationDelta
+        , newVRData NewVRData
+        ]
 
 
 view : Model -> Html msg
 view model =
+    let
+        dynamic =
+            Mat4.mul model.leftProjection model.leftView
+
+        static =
+            Mat4.mul
+                (Mat4.makePerspective 45 1 0.01 100)
+                (Mat4.makeLookAt (vec3 0 0 -5) (vec3 0 0 0) (vec3 0 1 0))
+    in
     WebGL.toHtml
-        [ width model.width
-        , height model.height
+        [ width 400
+        , height 400
         , style "display" "block"
         ]
         [ WebGL.entity
             vertexShader
             fragmentShader
             mesh
-            { perspective = perspective (model.time / 1000) }
+            { perspective = static }
         ]
 
 
@@ -86,9 +148,13 @@ type alias Vertex =
 mesh : Mesh Vertex
 mesh =
     WebGL.triangles
-        [ ( Vertex (vec3 0 0 0) (vec3 1 0 0)
-          , Vertex (vec3 1 1 0) (vec3 0 1 0)
-          , Vertex (vec3 1 -1 0) (vec3 0 0 1)
+        [ ( Vertex (vec3 -5 -5 1) (vec3 1 0 0)
+          , Vertex (vec3 5 -5 1) (vec3 0 1 0)
+          , Vertex (vec3 5 5 1) (vec3 0 0 1)
+          )
+        , ( Vertex (vec3 5 5 1) (vec3 1 0 0)
+          , Vertex (vec3 -5 5 1) (vec3 0 1 0)
+          , Vertex (vec3 -5 -5 1) (vec3 0 0 1)
           )
         ]
 

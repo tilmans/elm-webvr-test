@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start": "elm-live --dir=docs src/Main.elm -- --output=docs/index.js --debug"
+    "start": "elm-live --host=192.168.178.20 --dir=docs src/Main.elm -- --output=docs/index.js --debug"
   },
   "devDependencies": {
     "elm-live": "^3.1.0"

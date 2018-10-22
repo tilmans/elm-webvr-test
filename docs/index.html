@@ -2,67 +2,123 @@
 <html>
 
 <head>
-    <!-- <link href="style.css" rel="stylesheet" /> -->
-    <!-- <link href="colors.css" rel="stylesheet" /> -->
+    <script src='webvr-polyfill.js'></script>
 </head>
 
 <body>
     <div id="elm"></div>
     <script src="index.js"></script>
     <script>
+        var polyfill = new WebVRPolyfill({
+            // PROVIDE_MOBILE_VRDISPLAY: true,
+            ROTATE_INSTRUCTIONS_DISABLED: true,
+            // BUFFER_SCALE: 1,
+            YAW_ONLY: true,
+            DEBUG: false,
+            MOBILE_WAKE_LOCK: false,
+        });
+
         var app = Elm.Main.init({
             node: document.getElementById('elm')
         });
 
-        let vrDisplay;
-        navigator.getVRDisplays().then(displays => {
-            if (displays.length === 0) {
-                return;
-            }
-            vrDisplay = displays[displays.length - 1];
-            console.info(vrDisplay)
-            // optional, but recommended
-            // vrDisplay.depthNear = /* near clip plane distance */;
-            // vrDisplay.depthFar = /* far clip plane distance */;            
+        //TODO: Should use VRDisplay.requestAnimationFrame
+        //https://developer.mozilla.org/en-US/docs/Web/API/VRDisplay/requestAnimationFrame
+
+        app.ports.enterVR.subscribe(() => {
+            const frameData = new VRFrameData();
+            const canvas = document.getElementsByTagName("canvas")[0];
+
+            let vrDisplay;
+            let inVR = false;
+            navigator.getVRDisplays().then(displays => {
+                if (displays.length === 0) {
+                    return;
+                }
+                vrDisplay = displays[displays.length - 1];
+                console.info("VR Display", vrDisplay)
+                // optional, but recommended
+                // vrDisplay.depthNear = /* near clip plane distance */;
+                // vrDisplay.depthFar = /* far clip plane distance */;  
+
+                if (vrDisplay != null) {
+                    inVR = true
+                    // hand the canvas to the WebVR API
+                    console.info("Request VR")
+                    vrDisplay.requestPresent([{ source: canvas }])
+
+                    // requestPresent() will request permission to enter VR mode,
+                    // and once the user has done this our `vrdisplaypresentchange`
+                    // callback will be triggered
+                }
+            })
+
+            window.addEventListener('vrdisplaypresentchange', () => {
+                // no VR display, exit
+                if (vrDisplay == null)
+                    return;
+
+                // are we entering or exiting VR?
+                if (vrDisplay.isPresenting) {
+                    // We should make our canvas the size expected
+                    // by WebVR
+                    // const eye = vrDisplay.getEyeParameters("left");
+                    // multiply by two since we're rendering both eyes side
+                    // by side
+                    // canvas.width = eye.renderWidth * 2;
+                    // canvas.height = eye.renderHeight;
+
+                    const vrCallback = () => {
+                        if (vrDisplay == null || !inVR) {
+                            return;
+                        }
+                        // reregister callback if we're still in VR
+                        vrDisplay.requestAnimationFrame(vrCallback);
+
+                        vrDisplay.getFrameData(frameData)
+                        app.ports.newVRData.send(elmDataFrom(frameData))
+                        // render scene
+                        // render();
+                    };
+                    // register callback
+                    vrDisplay.requestAnimationFrame(vrCallback);
+                } else {
+                    inVR = false;
+                    // resize canvas to regular non-VR size if necessary
+                }
+            });
+
         })
 
-        let canvas = document.getElementsByTagName("canvas")[0];
-        console.info(canvas)
-
-        let inVR = false;
-
-        window.addEventListener('vrdisplaypresentchange', () => {
-            // no VR display, exit
-            if (vrDisplay == null)
-                return;
-
-            // are we entering or exiting VR?
-            if (vrDisplay.isPresenting) {
-                // We should make our canvas the size expected
-                // by WebVR
-                const eye = vrDisplay.getEyeParameters("left");
-                // multiply by two since we're rendering both eyes side
-                // by side
-                canvas.width = eye.renderWidth * 2;
-                canvas.height = eye.renderHeight;
-
-                const vrCallback = () => {
-                    if (vrDisplay == null || !inVR) {
-                        return;
-                    }
-                    // reregister callback if we're still in VR
-                    vrDisplay.requestAnimationFrame(vrCallback);
-
-                    // render scene
-                    render();
-                };
-                // register callback
-                vrDisplay.requestAnimationFrame(vrCallback);
-            } else {
-                inVR = false;
-                // resize canvas to regular non-VR size if necessary
+        function elmDataFrom(vr) {
+            return {
+                leftProjectionMatrix: recordFromArray(vr.leftProjectionMatrix),
+                leftViewMatrix: recordFromArray(vr.leftViewMatrix),
+                rightProjectionMatrix: recordFromArray(vr.rightProjectionMatrix),
+                rightViewMatrix: recordFromArray(vr.rightViewMatrix)
             }
-        });
+        }
+
+        function recordFromArray(a) {
+            return {                                //Need to check if this assumption is correct
+                m11: a[0],                          //0  1  2  3
+                m21: a[4],                          //4  5  6  7
+                m31: a[8],                          //8  9  10 11
+                m41: a[12],                         //12 13 14 15
+                m12: a[1],
+                m22: a[5],
+                m32: a[9],
+                m42: a[13],
+                m13: a[2],
+                m23: a[6],
+                m33: a[10],
+                m43: a[14],
+                m14: a[3],
+                m24: a[7],
+                m34: a[11],
+                m44: a[15]
+            }
+        }
     </script>
 </body>
 
