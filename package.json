@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "start": "elm-live --dir=docs src/Main.elm -- --output=docs/index.js --debug"
+  },
+  "devDependencies": {
+    "elm-live": "^3.1.0"
+  }
+}

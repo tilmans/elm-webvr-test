@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!-- <link href="style.css" rel="stylesheet" /> -->
+    <!-- <link href="colors.css" rel="stylesheet" /> -->
+</head>
+
+<body>
+    <div id="elm"></div>
+    <script src="index.js"></script>
+    <script>
+        var app = Elm.Main.init({
+            node: document.getElementById('elm')
+        });
+
+        let vrDisplay;
+        navigator.getVRDisplays().then(displays => {
+            if (displays.length === 0) {
+                return;
+            }
+            vrDisplay = displays[displays.length - 1];
+            console.info(vrDisplay)
+            // optional, but recommended
+            // vrDisplay.depthNear = /* near clip plane distance */;
+            // vrDisplay.depthFar = /* far clip plane distance */;            
+        })
+
+        let canvas = document.getElementsByTagName("canvas")[0];
+        console.info(canvas)
+
+        let inVR = false;
+
+        window.addEventListener('vrdisplaypresentchange', () => {
+            // no VR display, exit
+            if (vrDisplay == null)
+                return;
+
+            // are we entering or exiting VR?
+            if (vrDisplay.isPresenting) {
+                // We should make our canvas the size expected
+                // by WebVR
+                const eye = vrDisplay.getEyeParameters("left");
+                // multiply by two since we're rendering both eyes side
+                // by side
+                canvas.width = eye.renderWidth * 2;
+                canvas.height = eye.renderHeight;
+
+                const vrCallback = () => {
+                    if (vrDisplay == null || !inVR) {
+                        return;
+                    }
+                    // reregister callback if we're still in VR
+                    vrDisplay.requestAnimationFrame(vrCallback);
+
+                    // render scene
+                    render();
+                };
+                // register callback
+                vrDisplay.requestAnimationFrame(vrCallback);
+            } else {
+                inVR = false;
+                // resize canvas to regular non-VR size if necessary
+            }
+        });
+    </script>
+</body>
+
+</html>
